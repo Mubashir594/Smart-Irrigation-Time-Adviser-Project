@@ -1,0 +1,791 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AURA | Smart Irrigation Time Adviser</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+  
+  <style>
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      background-color: #0B1220;
+      color: #F8FAFC;
+      overflow-x: hidden;
+    }
+    
+    .dark-card {
+      background: #172033;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow: 0 15px 30px -10px rgba(0, 0, 0, 0.5);
+    }
+
+    .dark-elevated {
+      background: #1E293B;
+      border: 1px solid #334155;
+    }
+
+    .dark-grid {
+      background-image: radial-gradient(#1E293B 1px, transparent 1px);
+      background-size: 28px 28px;
+    }
+
+    .scanning-overlay {
+      position: absolute; inset: 0; background: rgba(15, 23, 42, 0.92);
+      display: none; align-items: center; justify-content: center; z-index: 50;
+      border-radius: inherit;
+    }
+
+    .scanning-line {
+      position: absolute; width: 100%; height: 2px;
+      background: linear-gradient(90deg, transparent, #14B8A6, transparent);
+      box-shadow: 0 0 12px #14B8A6;
+      animation: scan-loop 2s infinite linear;
+    }
+
+    @keyframes scan-loop { 0% { top: 0%; } 100% { top: 100%; } }
+
+    .dropdown-animate {
+      transform: translateY(10px) scale(0.98); opacity: 0; pointer-events: none;
+      transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+    .dropdown-animate.active { transform: translateY(0) scale(1); opacity: 1; pointer-events: auto; }
+
+    input[type=range] { -webkit-appearance: none; background: #334155; height: 5px; border-radius: 10px; }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none; height: 18px; width: 18px; border-radius: 50%;
+      background: #14B8A6; border: 2px solid #0B1220; box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body class="text-slate-100 min-h-screen pb-12 dark-grid opacity-0" id="body-content">
+
+  <!-- Toast Notification Container -->
+  <div id="toastContainer" class="fixed top-6 right-6 w-80 z-[110] space-y-3 pointer-events-none"></div>
+
+  <!-- Navigation Bar -->
+  <nav class="max-w-7xl mx-auto px-6 sm:px-8 py-8 flex justify-between items-center relative z-50">
+    <div class="flex items-center gap-3.5">
+      <div class="bg-slate-800/90 border border-slate-700 p-2.5 rounded-2xl shadow-md">
+        <i data-lucide="brain-circuit" class="text-teal-400 w-7 h-7"></i>
+      </div>
+      <div>
+        <h1 class="text-2xl font-extrabold tracking-tight text-white">AURA<span class="text-teal-400 font-bold ml-1">AI</span></h1>
+        <p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Smart Irrigation Time Adviser</p>
+      </div>
+    </div>
+    
+    <div class="flex items-center gap-2.5 relative">
+        <!-- Active User Badge -->
+        <div class="hidden sm:flex items-center gap-2 px-3.5 py-2 bg-slate-900 border border-slate-700/80 rounded-xl shadow-sm text-xs font-semibold text-slate-300">
+            <span class="w-2 h-2 rounded-full bg-teal-400 animate-pulse"></span>
+            <span id="currentUserName">aura_admin_01</span>
+        </div>
+
+        <!-- Calculation History Button -->
+        <button id="historyBtn" title="Calculation History" class="p-3 bg-slate-900 border border-slate-700/80 rounded-xl hover:border-teal-500 hover:text-teal-400 text-slate-300 transition-all active:scale-95 shadow-sm">
+            <i data-lucide="history" class="w-5 h-5"></i>
+        </button>
+
+        <!-- Node Configuration Button -->
+        <button id="configBtn" title="Node Configuration" class="p-3 bg-slate-900 border border-slate-700/80 rounded-xl hover:border-teal-500 hover:text-teal-400 text-slate-300 transition-all active:scale-95 shadow-sm">
+            <i data-lucide="settings-2" class="w-5 h-5"></i>
+        </button>
+
+        <!-- Notifications Feed Button -->
+        <button id="notifBtn" title="System Feed" class="p-3 bg-slate-900 border border-slate-700/80 rounded-xl hover:border-teal-500 hover:text-teal-400 text-slate-300 transition-all active:scale-95 relative shadow-sm">
+            <i data-lucide="bell" class="w-5 h-5"></i>
+            <span id="bellBadge" class="hidden absolute -top-1 -right-1 w-4 h-4 bg-teal-500 text-slate-900 text-[9px] font-black rounded-full flex items-center justify-center">0</span>
+        </button>
+
+        <!-- Logout Button -->
+        <button onclick="handleLogout()" title="Terminate Session" class="p-3 bg-slate-900 border border-slate-700/80 rounded-xl hover:border-red-500 text-slate-300 hover:text-red-400 transition-all active:scale-95 shadow-sm">
+            <i data-lucide="log-out" class="w-5 h-5"></i>
+        </button>
+
+        <!-- Notifications Dropdown -->
+        <div id="notifDropdown" class="dropdown-animate absolute right-0 top-full mt-3 w-96 rounded-2xl dark-card shadow-2xl z-50 overflow-hidden border border-slate-700">
+            <div class="p-5 border-b border-slate-800 flex justify-between items-center bg-slate-900/60">
+                <h4 class="font-bold text-sm text-slate-200">System Telemetry Feed</h4>
+                <button onclick="clearNotifications()" class="text-[10px] font-bold text-teal-400 hover:text-teal-300 uppercase tracking-wider">Clear All</button>
+            </div>
+            <div id="notifList" class="max-h-80 overflow-y-auto p-4 space-y-2.5">
+                <p class="text-center py-8 text-slate-500 text-xs italic">Feed empty. Standing by for calculation events...</p>
+            </div>
+        </div>
+    </div>
+  </nav>
+
+  <!-- Node Configuration Modal -->
+  <div id="configModal" class="fixed inset-0 z-[100] flex items-center justify-center p-4 opacity-0 pointer-events-none transition-all duration-300">
+    <div class="absolute inset-0 bg-slate-950/80 backdrop-blur-sm" onclick="toggleConfig(false)"></div>
+    <div class="dark-card w-full max-w-md rounded-3xl p-8 relative z-10 transform scale-90 border border-slate-700" id="modalContent">
+        <div class="flex justify-between items-center mb-6">
+            <div>
+                <h3 class="text-lg font-bold text-white tracking-tight">Node Configuration</h3>
+                <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Simulated Hardware & Interval Settings</p>
+            </div>
+            <button onclick="toggleConfig(false)" class="p-2 hover:bg-slate-800 rounded-xl transition-colors text-slate-400 hover:text-white">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+        </div>
+
+        <div class="space-y-5">
+            <div class="space-y-2">
+                <label class="text-[10px] font-bold text-slate-300 uppercase tracking-wider">Sensor Polling Frequency</label>
+                <select id="configSensorFreq" class="w-full dark-elevated rounded-xl px-4 py-3 text-xs font-semibold text-slate-200 outline-none focus:border-teal-500">
+                    <option value="Real-time (5s)">Real-time (5s)</option>
+                    <option value="Standard (15m)" selected>Standard (15m)</option>
+                    <option value="Eco-mode (1h)">Eco-mode (1h)</option>
+                </select>
+            </div>
+
+            <div class="space-y-2">
+                <div class="flex justify-between items-center">
+                    <label class="text-[10px] font-bold text-slate-300 uppercase tracking-wider">AURA API Key</label>
+                    <span class="text-[9px] font-medium text-slate-500">Academic Demo Placeholder</span>
+                </div>
+                <input id="configApiKey" type="password" value="sk_test_4eC39HqLyjWDarjtT1zdp7dc" readonly 
+                       class="w-full dark-elevated bg-slate-900/50 rounded-xl px-4 py-3 text-xs font-mono text-slate-500 outline-none cursor-not-allowed">
+            </div>
+
+            <div class="flex items-center justify-between p-4 dark-elevated rounded-2xl">
+                <div>
+                    <span class="text-xs font-bold text-slate-200 block">Autonomous Mode</span>
+                    <span class="text-[10px] text-slate-400 block">Simulated automatic advisory trigger</span>
+                </div>
+                <label class="relative inline-flex items-center cursor-pointer">
+                    <input id="configAutonomousMode" type="checkbox" class="sr-only peer" checked>
+                    <div class="w-11 h-6 bg-slate-700 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-teal-500"></div>
+                </label>
+            </div>
+
+            <button onclick="saveConfig()" class="w-full bg-teal-600 hover:bg-teal-500 text-white font-bold py-3.5 rounded-xl shadow-lg shadow-teal-950/40 transition-all active:scale-[0.98]">
+                SAVE NODE CONFIGURATION
+            </button>
+        </div>
+    </div>
+  </div>
+
+  <!-- Calculation History Modal -->
+  <div id="historyModal" class="fixed inset-0 z-[100] flex items-center justify-center p-4 opacity-0 pointer-events-none transition-all duration-300">
+    <div class="absolute inset-0 bg-slate-950/80 backdrop-blur-sm" onclick="toggleHistory(false)"></div>
+    <div class="dark-card w-full max-w-2xl rounded-3xl p-8 relative z-10 transform scale-90 flex flex-col max-h-[85vh] border border-slate-700" id="historyModalContent">
+        <div class="flex justify-between items-center mb-6">
+            <div>
+                <h3 class="text-lg font-bold text-white tracking-tight">Calculation History</h3>
+                <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Persisted Advisory Records (SQLite)</p>
+            </div>
+            <div class="flex items-center gap-2">
+                <button onclick="clearHistory()" class="px-3 py-1.5 rounded-lg bg-red-950/40 border border-red-800/40 hover:bg-red-900/40 text-red-400 text-[10px] font-bold uppercase tracking-wider transition-all">Clear All</button>
+                <button onclick="toggleHistory(false)" class="p-2 hover:bg-slate-800 rounded-xl transition-colors text-slate-400 hover:text-white">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+        </div>
+
+        <div id="historyList" class="flex-1 overflow-y-auto space-y-3 pr-2 max-h-[55vh]">
+            <p class="text-center py-10 text-slate-500 text-xs italic">Loading saved telemetry...</p>
+        </div>
+    </div>
+  </div>
+
+  <!-- Main Grid Dashboard Content -->
+  <main class="max-w-7xl mx-auto px-6 sm:px-8 grid grid-cols-1 lg:grid-cols-12 gap-8">
+    
+    <!-- Left Column: Input Configuration -->
+    <div class="lg:col-span-4 space-y-6" id="sidebar">
+      <section class="dark-card rounded-3xl p-8">
+        <div class="flex items-center justify-between mb-6 pb-2 border-b border-slate-800">
+            <h2 class="text-xs font-bold uppercase tracking-wider text-teal-400 flex items-center gap-2">
+                <i data-lucide="sliders" class="w-4 h-4"></i> Environment Config
+            </h2>
+            <span class="text-[10px] font-semibold text-slate-500">Python Engine</span>
+        </div>
+        
+        <div class="space-y-5">
+          <!-- Crop Species Dropdown -->
+          <div class="space-y-1.5">
+            <label class="text-[10px] font-bold text-slate-300 uppercase tracking-wider">Crop Species</label>
+            <select id="crop" class="w-full dark-elevated rounded-xl px-4 py-3 text-sm font-semibold text-slate-100 outline-none focus:border-teal-500">
+                <optgroup label="Cereals" class="bg-slate-900 text-slate-200">
+                    <option value="Rice">Oryza Sativa (Rice) — Kc 1.20</option>
+                    <option value="Maize">Zea Mays (Maize) — Kc 1.15</option>
+                    <option value="Wheat">Triticum (Wheat) — Kc 1.10</option>
+                    <option value="Barley">Hordeum vulgare (Barley) — Kc 1.00</option>
+                </optgroup>
+                <optgroup label="Vegetables" class="bg-slate-900 text-slate-200">
+                    <option value="Tomato" selected>Solanum lycopersicum (Tomato) — Kc 1.15</option>
+                    <option value="Potato">Solanum tuberosum (Potato) — Kc 1.10</option>
+                    <option value="Onion">Allium cepa (Onion) — Kc 1.05</option>
+                    <option value="Carrot">Daucus carota (Carrot) — Kc 1.00</option>
+                </optgroup>
+                <optgroup label="Fruits & Specialty" class="bg-slate-900 text-slate-200">
+                    <option value="Grapes">Vitis vinifera (Grapes) — Kc 0.85</option>
+                    <option value="Citrus">Citrus spp. (Citrus) — Kc 0.75</option>
+                    <option value="Coffee">Coffea Arabica (Coffee) — Kc 0.95</option>
+                    <option value="Banana">Musa spp. (Banana) — Kc 1.20</option>
+                </optgroup>
+            </select>
+          </div>
+
+          <!-- Soil & Weather Selects -->
+          <div class="grid grid-cols-2 gap-3.5">
+            <div class="space-y-1.5">
+              <label class="text-[10px] font-bold text-slate-300 uppercase tracking-wider">Soil Classification</label>
+              <select id="soil" class="w-full dark-elevated rounded-xl px-3 py-2.5 text-xs font-semibold text-slate-100 outline-none focus:border-teal-500">
+                <option value="clay">Heavy Clay</option>
+                <option value="silty-clay">Silty Clay</option>
+                <option value="loamy" selected>Silt Loam</option>
+                <option value="sandy-loam">Sandy Loam</option>
+                <option value="sandy">Coarse Sand</option>
+                <option value="peat">Peat / Organic</option>
+              </select>
+            </div>
+            <div class="space-y-1.5">
+              <label class="text-[10px] font-bold text-slate-300 uppercase tracking-wider">Weather Condition</label>
+              <select id="weather" class="w-full dark-elevated rounded-xl px-3 py-2.5 text-xs font-semibold text-slate-100 outline-none focus:border-teal-500">
+                <option value="hot">Extreme Arid</option>
+                <option value="warm">Sunny/Warm</option>
+                <option value="normal" selected>Mild/Clear</option>
+                <option value="cool">Cool/Overcast</option>
+                <option value="rainy">Heavy Rain</option>
+                <option value="humid">Tropical/Humid</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Elapsed Time Delta -->
+          <div class="space-y-3 pt-1">
+            <div class="flex justify-between items-center">
+                <label class="text-[10px] font-bold text-slate-300 uppercase tracking-wider">Elapsed Time Delta</label>
+                <span id="hoursLabel" class="text-xs font-bold text-teal-400 bg-slate-900 border border-slate-800 px-2.5 py-1 rounded-lg">12h Since Watering</span>
+            </div>
+            <input type="range" id="hours" min="0" max="72" value="12" class="w-full">
+          </div>
+
+          <!-- Initialization Button -->
+          <button onclick="runIrrigationAdvisory()" id="scanBtn" class="w-full bg-teal-600 hover:bg-teal-500 text-white font-bold py-4 rounded-2xl shadow-lg shadow-teal-950/40 transition-all flex items-center justify-center gap-2.5 active:scale-[0.98]">
+              <span class="tracking-wide">CALCULATE IRRIGATION ADVISORY</span>
+              <i data-lucide="cpu" class="w-4 h-4 text-teal-200"></i>
+          </button>
+        </div>
+      </section>
+
+      <!-- Agronomic Reference Indicators -->
+      <div class="grid grid-cols-2 gap-4">
+          <div class="dark-card p-5 rounded-2xl">
+              <p class="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1">Reference ETo</p>
+              <p class="text-xl font-bold text-slate-100" id="statETo">--</p>
+          </div>
+          <div class="dark-card p-5 rounded-2xl">
+              <p class="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1">Crop ETc Rate</p>
+              <p class="text-xl font-bold text-slate-100" id="statLoss">--</p>
+          </div>
+      </div>
+    </div>
+
+    <!-- Right Column: Results & Telemetry Ribbon -->
+    <div class="lg:col-span-8 space-y-6" id="main-content">
+      
+      <!-- Telemetry Ribbon -->
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-4" id="stat-ribbon">
+        <div class="dark-card p-5 rounded-2xl relative overflow-hidden">
+          <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Soil Moisture</p>
+          <p class="text-2xl font-extrabold text-white" id="statMoisture">--</p>
+          <svg class="absolute bottom-0 left-0 w-full h-8 opacity-25" viewBox="0 0 100 30"><path d="M0,25 L20,15 L40,20 L60,5 L80,25 L100,10" fill="none" stroke="#38BDF8" stroke-width="2"/></svg>
+        </div>
+        <div class="dark-card p-5 rounded-2xl relative overflow-hidden">
+            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Daily ETc Loss</p>
+            <p class="text-2xl font-extrabold text-white" id="statEtc">--</p>
+            <svg class="absolute bottom-0 left-0 w-full h-8 opacity-25" viewBox="0 0 100 30"><path d="M0,10 L30,25 L50,15 L70,20 L100,5" fill="none" stroke="#14B8A6" stroke-width="2"/></svg>
+        </div>
+        <div class="dark-card p-5 rounded-2xl relative overflow-hidden">
+            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Available Water Capacity (AWC)</p>
+            <p class="text-2xl font-extrabold text-white" id="statAWC">--</p>
+            <svg class="absolute bottom-0 left-0 w-full h-8 opacity-25" viewBox="0 0 100 30"><path d="M0,20 L25,5 L50,20 L75,5 L100,20" fill="none" stroke="#F59E0B" stroke-width="2"/></svg>
+        </div>
+        <div class="dark-card p-5 rounded-2xl border-l-4 border-teal-500">
+            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Canopy Health</p>
+            <p class="text-2xl font-extrabold text-teal-400" id="statHealth">STANDBY</p>
+        </div>
+      </div>
+
+      <!-- Main Advisory Output Card -->
+      <div id="aiCard" class="dark-card rounded-3xl p-8 sm:p-12 min-h-[500px] flex flex-col items-center justify-center relative overflow-hidden">
+        
+        <!-- Processing Overlay -->
+        <div id="scanOverlay" class="scanning-overlay flex-col">
+            <div class="scanning-line"></div>
+            <div class="text-center">
+                <div class="w-16 h-16 rounded-2xl bg-teal-500/10 border border-teal-500/30 flex items-center justify-center mx-auto mb-4">
+                    <i data-lucide="brain-circuit" class="w-8 h-8 text-teal-400 animate-pulse"></i>
+                </div>
+                <h3 class="text-lg font-bold text-white uppercase tracking-wider">AURA Engine Computing...</h3>
+                <p class="text-xs text-slate-400 font-medium mt-1">Solving FAO-56 Evapotranspiration & Moisture Depletion</p>
+            </div>
+        </div>
+
+        <!-- Standby / Idle State -->
+        <div id="idleState" class="text-center py-6">
+            <div class="w-20 h-20 bg-slate-800/60 border border-slate-700/60 rounded-3xl flex items-center justify-center mx-auto mb-6">
+                <i data-lucide="sprout" class="w-10 h-10 text-teal-400"></i>
+            </div>
+            <h3 class="text-xl font-bold text-white mb-2">Agronomic Advisory Engine Ready</h3>
+            <p class="text-slate-400 text-sm max-w-sm mx-auto font-medium">Select crop species, soil classification, weather condition, and elapsed time to compute the scientifically estimated irrigation deficit window.</p>
+        </div>
+
+        <!-- Calculated Results State -->
+        <div id="resultsState" class="hidden w-full h-full flex flex-col lg:flex-row items-center gap-12">
+            <!-- Soil Saturation Circular Gauge -->
+            <div class="relative flex justify-center flex-1">
+                <svg class="w-60 h-60 transform -rotate-90">
+                    <circle cx="120" cy="120" r="100" fill="transparent" stroke="#1E293B" stroke-width="20"></circle>
+                    <circle id="gaugeFull" cx="120" cy="120" r="100" fill="transparent" stroke="url(#tealSkyGrad)" stroke-width="20" stroke-dasharray="628" stroke-dashoffset="628" stroke-linecap="round" class="transition-all duration-[1.2s] ease-out"></circle>
+                    <defs>
+                        <linearGradient id="tealSkyGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                            <stop offset="0%" stop-color="#38BDF8" />
+                            <stop offset="100%" stop-color="#14B8A6" />
+                        </linearGradient>
+                    </defs>
+                </svg>
+                <div class="absolute inset-0 flex flex-col items-center justify-center">
+                    <span class="text-5xl font-black text-white tracking-tight" id="gaugeText">0%</span>
+                    <span class="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">Soil Saturation</span>
+                </div>
+            </div>
+
+            <!-- Advisory Interpretation Content -->
+            <div class="flex-1 space-y-5 text-left">
+                <div id="resultBadge" class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider bg-teal-950/60 text-teal-400 border border-teal-800/50">
+                    <span id="resultBadgeText">SYSTEM OPTIMAL</span>
+                </div>
+                
+                <h2 id="resultTitle" class="text-2xl sm:text-3xl font-extrabold text-white leading-tight">--</h2>
+                
+                <!-- Advisory Recommendation Card -->
+                <div class="p-4 bg-slate-900 border border-slate-800 rounded-2xl shadow-sm">
+                    <p class="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1">Agronomic Directive</p>
+                    <p id="aiRec" class="text-sm font-bold text-teal-300">Analyzing...</p>
+                </div>
+
+                <p id="resultDesc" class="text-slate-300 leading-relaxed text-sm font-normal">--</p>
+                
+                <!-- Calculation Breakdown Telemetry Box -->
+                <div class="p-5 dark-elevated rounded-2xl border border-slate-700/60">
+                    <div class="flex justify-between items-center text-xs font-semibold text-slate-300">
+                        <span>Predicted Deficit Horizon:</span>
+                        <span id="tcwVal" class="text-teal-400 font-bold">--</span>
+                    </div>
+                    <div class="mt-2.5 pt-2.5 border-t border-slate-700/60 flex flex-wrap justify-between items-center gap-2 text-[11px] text-slate-400">
+                        <span>Crop Factor (Kc): <strong id="paramKc" class="text-slate-200">--</strong></span>
+                        <span>Daily ETc: <strong id="paramEtc" class="text-slate-200">--</strong></span>
+                        <span>Available Water Capacity (AWC): <strong id="paramAWC" class="text-slate-200">--</strong></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    lucide.createIcons();
+    let notifications = [];
+
+    // --- Authentication & Session Validation ---
+    const token = localStorage.getItem('aura_token');
+    if (!token) {
+        window.location.href = 'index.html';
+    }
+
+    async function checkAuthAndLoadData() {
+        try {
+            const res = await fetch('/api/auth/me', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (!res.ok) {
+                localStorage.removeItem('aura_token');
+                localStorage.removeItem('aura_user');
+                window.location.href = 'index.html';
+                return;
+            }
+            const userData = await res.json();
+            const userDisplay = document.getElementById('currentUserName');
+            if (userDisplay) {
+                userDisplay.innerText = userData.full_name && userData.full_name.trim() 
+                    ? `${userData.username} (${userData.full_name})` 
+                    : userData.username;
+            }
+
+            // Load saved user node settings from database
+            loadSettings();
+        } catch (err) {
+            console.error('Session validation error:', err);
+        }
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+        checkAuthAndLoadData();
+        gsap.to("#body-content", { opacity: 1, duration: 0.8 });
+        gsap.from("#sidebar", { x: -25, opacity: 0, duration: 0.6, delay: 0.2 });
+        gsap.from("#main-content", { x: 25, opacity: 0, duration: 0.6, delay: 0.2 });
+    });
+
+    async function handleLogout() {
+        try {
+            await fetch('/api/auth/logout', {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+        } catch (e) {
+            console.warn('Logout API failed:', e);
+        }
+        localStorage.removeItem('aura_token');
+        localStorage.removeItem('aura_user');
+        window.location.href = 'index.html';
+    }
+
+    // --- Configuration Dialogue Logic ---
+    const configBtn = document.getElementById('configBtn');
+    const configModal = document.getElementById('configModal');
+    const modalContent = document.getElementById('modalContent');
+
+    function toggleConfig(show) {
+        if (show) {
+            configModal.classList.remove('pointer-events-none');
+            gsap.to(configModal, { opacity: 1, duration: 0.25 });
+            gsap.to(modalContent, { scale: 1, y: 0, duration: 0.3, ease: "power2.out" });
+        } else {
+            gsap.to(configModal, { opacity: 0, duration: 0.2, onComplete: () => {
+                configModal.classList.add('pointer-events-none');
+            }});
+            gsap.to(modalContent, { scale: 0.95, duration: 0.2 });
+        }
+    }
+
+    configBtn.addEventListener('click', () => toggleConfig(true));
+
+    async function loadSettings() {
+        try {
+            const res = await fetch('/api/users/settings', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (res.ok) {
+                const s = await res.json();
+                const freqSelect = document.getElementById('configSensorFreq');
+                const autoCheckbox = document.getElementById('configAutonomousMode');
+                if (freqSelect) freqSelect.value = s.sensor_frequency;
+                if (autoCheckbox) autoCheckbox.checked = s.autonomous_mode;
+            }
+        } catch (e) {
+            console.error('Error loading settings:', e);
+        }
+    }
+
+    async function saveConfig() {
+        const freq = document.getElementById('configSensorFreq').value;
+        const autonomous = document.getElementById('configAutonomousMode').checked;
+
+        try {
+            const res = await fetch('/api/users/settings', {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    sensor_frequency: freq,
+                    autonomous_mode: autonomous
+                })
+            });
+
+            if (res.ok) {
+                toggleConfig(false);
+                addNotification("Node settings persisted to SQLite.", "info");
+                confetti({
+                    particleCount: 30,
+                    spread: 45,
+                    origin: { y: 0.6 },
+                    colors: ['#14B8A6', '#38BDF8']
+                });
+            } else {
+                showToast("Failed to save settings.", "error");
+            }
+        } catch (err) {
+            console.error('Save settings error:', err);
+            showToast("Server communication error.", "error");
+        }
+    }
+
+    // --- Calculation History Modal Logic ---
+    const historyBtn = document.getElementById('historyBtn');
+    const historyModal = document.getElementById('historyModal');
+    const historyModalContent = document.getElementById('historyModalContent');
+
+    function toggleHistory(show) {
+        if (show) {
+            loadHistory();
+            historyModal.classList.remove('pointer-events-none');
+            gsap.to(historyModal, { opacity: 1, duration: 0.25 });
+            gsap.to(historyModalContent, { scale: 1, y: 0, duration: 0.3, ease: "power2.out" });
+        } else {
+            gsap.to(historyModal, { opacity: 0, duration: 0.2, onComplete: () => {
+                historyModal.classList.add('pointer-events-none');
+            }});
+            gsap.to(historyModalContent, { scale: 0.95, duration: 0.2 });
+        }
+    }
+
+    historyBtn.addEventListener('click', () => toggleHistory(true));
+
+    async function loadHistory() {
+        const list = document.getElementById('historyList');
+        list.innerHTML = '<p class="text-center py-8 text-slate-500 text-xs italic">Loading saved telemetry...</p>';
+
+        try {
+            const res = await fetch('/api/irrigation/history', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (!res.ok) throw new Error("History fetch failed");
+
+            const records = await res.json();
+            if (records.length === 0) {
+                list.innerHTML = '<p class="text-center py-10 text-slate-500 text-xs italic">No previous calculations found in SQLite database.</p>';
+                return;
+            }
+
+            list.innerHTML = records.map(r => {
+                const dateStr = new Date(r.created_at).toLocaleString();
+                const isAlert = r.irrigation_status.includes('CRITICAL');
+                const isWet = r.irrigation_status.includes('SATURATED');
+                const badgeColor = isAlert ? 'bg-red-950/60 text-red-400 border border-red-800/50' : 
+                                  (isWet ? 'bg-blue-950/60 text-blue-400 border border-blue-800/50' : 
+                                           'bg-teal-950/60 text-teal-400 border border-teal-800/50');
+
+                return `
+                    <div class="p-4 bg-slate-900/90 border border-slate-800 rounded-2xl shadow-sm hover:border-slate-700 transition-colors">
+                        <div class="flex justify-between items-start mb-2">
+                            <div>
+                                <span class="font-bold text-white text-sm">${r.crop_type}</span>
+                                <span class="text-slate-400 text-xs font-medium ml-2">• ${r.soil_type} • ${r.weather_condition} • ${r.hours_since_irrigation}h ago</span>
+                            </div>
+                            <span class="text-[9px] font-bold uppercase px-2 py-0.5 rounded-md ${badgeColor}">${r.irrigation_status}</span>
+                        </div>
+                        <div class="flex justify-between items-center text-xs font-medium text-slate-400 pt-2 border-t border-slate-800">
+                            <div>
+                                <span>Moisture: <strong class="text-white">${r.estimated_moisture}%</strong></span>
+                                <span class="mx-2 text-slate-600">|</span>
+                                <span>Deficit Window: <strong class="text-white">${r.estimated_time_to_critical_deficit}h</strong></span>
+                            </div>
+                            <span class="text-[10px] text-slate-500">${dateStr}</span>
+                        </div>
+                        <p class="text-[11px] font-semibold text-slate-300 mt-1.5 italic">${r.recommendation}</p>
+                    </div>
+                `;
+            }).join('');
+        } catch (e) {
+            console.error('History load error:', e);
+            list.innerHTML = '<p class="text-center py-10 text-red-400 text-xs italic">Failed to retrieve history from backend.</p>';
+        }
+    }
+
+    async function clearHistory() {
+        if (!confirm("Are you sure you want to clear your saved calculation history from the database?")) {
+            return;
+        }
+
+        try {
+            const res = await fetch('/api/irrigation/history', {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (res.ok) {
+                showToast("Irrigation history cleared.", "info");
+                loadHistory();
+            } else {
+                showToast("Failed to clear history.", "error");
+            }
+        } catch (e) {
+            console.error('Clear history error:', e);
+            showToast("Server error while clearing history.", "error");
+        }
+    }
+
+    // --- Python Backend Irrigation Calculation Engine Integration ---
+
+    async function runIrrigationAdvisory() {
+        const btn = document.getElementById('scanBtn');
+        const overlay = document.getElementById('scanOverlay');
+        const idle = document.getElementById('idleState');
+        const results = document.getElementById('resultsState');
+
+        // Prevent duplicate submissions
+        btn.disabled = true;
+        btn.classList.add('opacity-60', 'cursor-not-allowed');
+        overlay.style.display = 'flex';
+        gsap.to(idle, { opacity: 0, duration: 0.2 });
+
+        const cropVal = document.getElementById('crop').value;
+        const soilVal = document.getElementById('soil').value;
+        const weatherVal = document.getElementById('weather').value;
+        const hoursVal = parseInt(document.getElementById('hours').value);
+
+        try {
+            // Call authoritative Python FastAPI backend
+            const response = await fetch('/api/irrigation/calculate', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    crop_type: cropVal,
+                    soil_type: soilVal,
+                    weather_condition: weatherVal,
+                    hours_since_irrigation: hoursVal
+                })
+            });
+
+            if (!response.ok) {
+                const errData = await response.json();
+                throw new Error(errData.detail || "Calculation failed on server.");
+            }
+
+            const data = await response.json();
+
+            // Simulate smooth processing duration (1200ms) for UI responsiveness
+            setTimeout(() => {
+                overlay.style.display = 'none';
+                idle.classList.add('hidden');
+                results.classList.remove('hidden'); 
+                results.style.display = 'flex'; 
+
+                gsap.from(results, { opacity: 0, y: 15, duration: 0.4 });
+                updateDashboardUI(data);
+                
+                btn.disabled = false;
+                btn.classList.remove('opacity-60', 'cursor-not-allowed');
+                showToast("Calculation completed & telemetry saved to SQLite.", "info");
+            }, 1200);
+
+        } catch (err) {
+            console.error('Calculation API error:', err);
+            overlay.style.display = 'none';
+            btn.disabled = false;
+            btn.classList.remove('opacity-60', 'cursor-not-allowed');
+            showToast(err.message || "Calculation request failed.", "error");
+        }
+    }
+
+    function updateDashboardUI(data) {
+        // Mini stats
+        document.getElementById('statETo').innerText = data.eto_estimate.toFixed(1) + ' mm/d';
+        document.getElementById('statLoss').innerText = data.etc_loss_rate.toFixed(1) + ' mm/d';
+
+        // Telemetry ribbon
+        document.getElementById('statMoisture').innerText = data.estimated_moisture + '%';
+        document.getElementById('statEtc').innerText = data.etc_loss_rate.toFixed(1) + ' mm/d';
+        document.getElementById('statAWC').innerText = data.soil_capacity_mm.toFixed(1) + ' mm';
+        
+        const healthEl = document.getElementById('statHealth');
+        healthEl.innerText = data.health_index;
+        if (data.alert_level === 'critical') {
+            healthEl.className = "text-2xl font-extrabold text-red-400";
+        } else if (data.alert_level === 'warning') {
+            healthEl.className = "text-2xl font-extrabold text-blue-400";
+        } else {
+            healthEl.className = "text-2xl font-extrabold text-teal-400";
+        }
+
+        // Circular gauge
+        const gauge = document.getElementById('gaugeFull');
+        const offset = 628 - (628 * data.estimated_moisture) / 100;
+        gauge.style.strokeDashoffset = offset;
+        document.getElementById('gaugeText').innerText = data.estimated_moisture + '%';
+
+        // Titles and recommendations
+        document.getElementById('resultTitle').innerText = data.title;
+        document.getElementById('resultDesc').innerText = data.description;
+        document.getElementById('aiRec').innerText = data.recommendation;
+
+        const badge = document.getElementById('resultBadge');
+        const bText = document.getElementById('resultBadgeText');
+        bText.innerText = data.irrigation_status;
+
+        if (data.alert_level === 'critical') {
+            badge.className = "inline-flex items-center gap-2 px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider bg-red-950/60 text-red-400 border border-red-800/50";
+            addNotification(`CRITICAL: Wilt risk in ${data.estimated_time_to_critical_deficit}h!`, "error");
+        } else if (data.alert_level === 'warning') {
+            badge.className = "inline-flex items-center gap-2 px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider bg-blue-950/60 text-blue-400 border border-blue-800/50";
+            addNotification(`Advice: Soil saturated (>85%). Suspend watering.`, "info");
+        } else {
+            badge.className = "inline-flex items-center gap-2 px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider bg-teal-950/60 text-teal-400 border border-teal-800/50";
+            confetti({ particleCount: 60, spread: 55, origin: { y: 0.75 }, colors: ['#14B8A6', '#38BDF8'] });
+        }
+
+        // Scientific parameter breakdown
+        document.getElementById('tcwVal').innerText = data.estimated_time_to_critical_deficit + ' Hours Remaining';
+        document.getElementById('paramKc').innerText = data.crop_coefficient.toFixed(2);
+        document.getElementById('paramEtc').innerText = data.etc_loss_rate.toFixed(1) + ' mm';
+        document.getElementById('paramAWC').innerText = data.soil_capacity_mm.toFixed(1) + ' mm';
+    }
+
+    // --- Notification & Toast System ---
+    const notifBtn = document.getElementById('notifBtn');
+    const notifDropdown = document.getElementById('notifDropdown');
+    const bellBadge = document.getElementById('bellBadge');
+
+    notifBtn.addEventListener('click', (e) => { e.stopPropagation(); notifDropdown.classList.toggle('active'); });
+    document.addEventListener('click', () => {
+        notifDropdown.classList.remove('active');
+    });
+
+    function addNotification(msg, type) {
+        notifications.unshift({ msg, type });
+        updateNotifUI();
+    }
+
+    function updateNotifUI() {
+        const list = document.getElementById('notifList');
+        if (notifications.length > 0) {
+            bellBadge.classList.remove('hidden');
+            bellBadge.innerText = notifications.length;
+            list.innerHTML = notifications.map(n => `
+                <div class="p-3 bg-slate-900 border-l-4 ${n.type === 'error' ? 'border-red-500' : 'border-teal-500'} rounded-r-xl border border-slate-800">
+                    <p class="text-xs font-bold text-slate-200">${n.msg}</p>
+                    <p class="text-[8px] text-slate-500 font-bold uppercase mt-1 tracking-wider">AURA Advisory Telemetry</p>
+                </div>
+            `).join('');
+        }
+    }
+
+    function clearNotifications() {
+        notifications = [];
+        bellBadge.classList.add('hidden');
+        document.getElementById('notifList').innerHTML = '<p class="text-center py-8 text-slate-500 text-xs italic">Feed empty.</p>';
+    }
+
+    function showToast(msg, type) {
+        const container = document.getElementById('toastContainer');
+        const toast = document.createElement('div');
+        const bg = type === 'error' ? 'bg-red-950/90 border-red-800/60 text-red-200' : 'bg-slate-900/90 border-slate-700 text-slate-200';
+        toast.className = `${bg} border backdrop-blur-md p-4 rounded-xl shadow-xl flex items-center gap-3 pointer-events-auto transition-all duration-300 transform translate-x-[120%]`;
+        toast.innerHTML = `<i data-lucide="${type === 'error' ? 'alert-triangle' : 'check-circle-2'}" class="w-5 h-5 ${type === 'error' ? 'text-red-400' : 'text-teal-400'} shrink-0"></i><span class="text-xs font-semibold">${msg}</span>`;
+        container.appendChild(toast);
+        lucide.createIcons();
+        setTimeout(() => toast.style.transform = 'translateX(0)', 50);
+        setTimeout(() => { toast.style.transform = 'translateX(130%)'; setTimeout(() => toast.remove(), 400); }, 3500);
+    }
+
+    document.getElementById('hours').addEventListener('input', (e) => {
+        document.getElementById('hoursLabel').innerText = `${e.target.value}h Since Watering`;
+    });
+  </script>
+</body>
+</html>

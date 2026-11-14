@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aura OS | Terminal Authentication</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <style>
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: #0B1220;
+            color: #F8FAFC;
+            overflow-x: hidden;
+        }
+        .dark-grid-bg {
+            background-image: linear-gradient(to right, rgba(20, 184, 166, 0.04) 1px, transparent 1px),
+                              linear-gradient(to bottom, rgba(20, 184, 166, 0.04) 1px, transparent 1px);
+            background-size: 36px 36px;
+        }
+        .card-surface {
+            background: #172033;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.6);
+        }
+        .input-surface {
+            background: #1E293B;
+            border: 1px solid #334155;
+            color: #F8FAFC;
+        }
+        .input-surface:focus {
+            border-color: #14B8A6;
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(20, 184, 166, 0.2);
+        }
+        .auth-tab {
+            transition: all 0.25s ease;
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen dark-grid-bg px-4 py-8">
+
+    <div class="max-w-md w-full text-center">
+        <!-- Brand Header -->
+        <div class="mb-6 flex flex-col items-center">
+            <div class="w-14 h-14 bg-teal-500/10 border border-teal-500/30 rounded-2xl flex items-center justify-center mb-3.5 shadow-lg shadow-teal-500/5">
+                <i data-lucide="sprout" class="text-teal-400 w-8 h-8"></i>
+            </div>
+            <h1 class="text-3xl font-extrabold text-white tracking-tight">Aura<span class="text-teal-400">OS</span></h1>
+            <p class="text-slate-400 text-xs font-semibold uppercase tracking-widest mt-1">Smart Irrigation Time Adviser</p>
+        </div>
+
+        <!-- Auth Card Container -->
+        <div class="card-surface p-7 sm:p-9 rounded-3xl relative overflow-hidden text-left">
+            
+            <!-- Auth Navigation Mode Switcher -->
+            <div class="flex p-1 bg-slate-900/90 rounded-2xl border border-slate-800 mb-6">
+                <button type="button" id="tabLogin" onclick="switchMode('login')" 
+                        class="auth-tab flex-1 py-2.5 text-xs font-bold rounded-xl text-center text-white bg-teal-600 shadow-md">
+                    Terminal Login
+                </button>
+                <button type="button" id="tabRegister" onclick="switchMode('register')" 
+                        class="auth-tab flex-1 py-2.5 text-xs font-semibold rounded-xl text-center text-slate-400 hover:text-slate-200">
+                    Register Operator
+                </button>
+            </div>
+
+            <!-- Notifications & Alert Box -->
+            <div id="authAlert" class="hidden p-3.5 mb-5 rounded-xl text-xs font-medium flex items-center gap-2.5">
+                <i id="authAlertIcon" data-lucide="alert-circle" class="w-4 h-4 shrink-0"></i>
+                <span id="authAlertMsg">Notification message</span>
+            </div>
+
+            <!-- LOGIN VIEW -->
+            <div id="loginView">
+                <form id="loginForm" class="space-y-4">
+                    <div class="space-y-1.5">
+                        <label class="text-[11px] font-bold text-slate-300 uppercase tracking-wider">Username / Auth ID</label>
+                        <input id="authUsername" type="text" required placeholder="aura_admin_01" value="aura_admin_01" 
+                               class="w-full input-surface rounded-xl px-4 py-3 text-sm transition-all placeholder:text-slate-500">
+                    </div>
+
+                    <div class="space-y-1.5">
+                        <div class="flex justify-between items-center">
+                            <label class="text-[11px] font-bold text-slate-300 uppercase tracking-wider">Security Token / Password</label>
+                            <span class="text-[10px] font-medium text-slate-500">Local SQLite Auth</span>
+                        </div>
+                        <input id="authPassword" type="password" required placeholder="••••••••" 
+                               class="w-full input-surface rounded-xl px-4 py-3 text-sm transition-all placeholder:text-slate-500">
+                    </div>
+                    
+                    <button type="submit" id="authBtn" 
+                            class="w-full mt-2 bg-teal-600 hover:bg-teal-500 text-white font-bold py-3.5 rounded-xl shadow-lg shadow-teal-950/40 transition-all flex items-center justify-center gap-2 active:scale-[0.98]">
+                        <span id="btnText">ACCESS DASHBOARD</span>
+                        <i data-lucide="arrow-right" class="w-4 h-4"></i>
+                    </button>
+                </form>
+
+                <div class="mt-6 pt-4 border-t border-slate-800 text-center">
+                    <button onclick="switchMode('register')" class="text-xs font-semibold text-slate-400 hover:text-teal-400 transition-colors">
+                        New operator? <span class="text-teal-400 underline decoration-teal-500/40 underline-offset-2">Create an account</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- REGISTRATION VIEW -->
+            <div id="registerView" class="hidden">
+                <form id="registerForm" class="space-y-4">
+                    <div class="space-y-1.5">
+                        <label class="text-[11px] font-bold text-slate-300 uppercase tracking-wider">Full Name</label>
+                        <input id="regFullName" type="text" required placeholder="Dr. M. Mubashir" 
+                               class="w-full input-surface rounded-xl px-4 py-3 text-sm transition-all placeholder:text-slate-500">
+                    </div>
+
+                    <div class="space-y-1.5">
+                        <label class="text-[11px] font-bold text-slate-300 uppercase tracking-wider">Desired Username</label>
+                        <input id="regUsername" type="text" required placeholder="operator_field_01" 
+                               class="w-full input-surface rounded-xl px-4 py-3 text-sm transition-all placeholder:text-slate-500">
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                        <div class="space-y-1.5">
+                            <label class="text-[11px] font-bold text-slate-300 uppercase tracking-wider">Password</label>
+                            <input id="regPassword" type="password" required minlength="4" placeholder="••••••••" 
+                                   class="w-full input-surface rounded-xl px-4 py-3 text-sm transition-all placeholder:text-slate-500">
+                        </div>
+
+                        <div class="space-y-1.5">
+                            <label class="text-[11px] font-bold text-slate-300 uppercase tracking-wider">Confirm Password</label>
+                            <input id="regConfirmPassword" type="password" required minlength="4" placeholder="••••••••" 
+                                   class="w-full input-surface rounded-xl px-4 py-3 text-sm transition-all placeholder:text-slate-500">
+                        </div>
+                    </div>
+                    
+                    <button type="submit" id="regBtn" 
+                            class="w-full mt-2 bg-teal-600 hover:bg-teal-500 text-white font-bold py-3.5 rounded-xl shadow-lg shadow-teal-950/40 transition-all flex items-center justify-center gap-2 active:scale-[0.98]">
+                        <span id="regBtnText">REGISTER OPERATOR</span>
+                        <i data-lucide="user-plus" class="w-4 h-4"></i>
+                    </button>
+                </form>
+
+                <div class="mt-6 pt-4 border-t border-slate-800 text-center">
+                    <button onclick="switchMode('login')" class="text-xs font-semibold text-slate-400 hover:text-teal-400 transition-colors">
+                        Already registered? <span class="text-teal-400 underline decoration-teal-500/40 underline-offset-2">Return to login</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Node Status Footer -->
+            <div class="mt-6 pt-4 border-t border-slate-800 flex justify-between items-center text-xs text-slate-400">
+                <span class="font-medium">Multi-User Core</span>
+                <span class="text-teal-400 font-semibold flex items-center gap-1.5">
+                    <span class="w-1.5 h-1.5 rounded-full bg-teal-400 animate-pulse"></span> Local SQLite Active
+                </span>
+            </div>
+        </div>
+        
+        <p class="mt-6 text-[11px] text-slate-500 font-medium">BCA Final-Year Academic Project • Multi-User Local Authentication</p>
+    </div>
+
+    <script>
+        lucide.createIcons();
+
+        function showAlert(msg, isSuccess = false) {
+            const alertBox = document.getElementById('authAlert');
+            const alertMsg = document.getElementById('authAlertMsg');
+            const alertIcon = document.getElementById('authAlertIcon');
+
+            alertBox.classList.remove('hidden', 'bg-red-950/40', 'border-red-800/50', 'text-red-300', 'bg-teal-950/40', 'border-teal-800/50', 'text-teal-300');
+            
+            if (isSuccess) {
+                alertBox.classList.add('bg-teal-950/40', 'border', 'border-teal-800/50', 'text-teal-300');
+                alertIcon.setAttribute('data-lucide', 'check-circle-2');
+            } else {
+                alertBox.classList.add('bg-red-950/40', 'border', 'border-red-800/50', 'text-red-300');
+                alertIcon.setAttribute('data-lucide', 'alert-circle');
+            }
+            alertMsg.innerText = msg;
+            lucide.createIcons();
+        }
+
+        function hideAlert() {
+            document.getElementById('authAlert').classList.add('hidden');
+        }
+
+        function switchMode(mode) {
+            hideAlert();
+            const tabLogin = document.getElementById('tabLogin');
+            const tabRegister = document.getElementById('tabRegister');
+            const loginView = document.getElementById('loginView');
+            const registerView = document.getElementById('registerView');
+
+            if (mode === 'register') {
+                tabLogin.className = "auth-tab flex-1 py-2.5 text-xs font-semibold rounded-xl text-center text-slate-400 hover:text-slate-200";
+                tabRegister.className = "auth-tab flex-1 py-2.5 text-xs font-bold rounded-xl text-center text-white bg-teal-600 shadow-md";
+                
+                loginView.classList.add('hidden');
+                registerView.classList.remove('hidden');
+                gsap.fromTo(registerView, { opacity: 0, y: 10 }, { opacity: 1, y: 0, duration: 0.25 });
+            } else {
+                tabRegister.className = "auth-tab flex-1 py-2.5 text-xs font-semibold rounded-xl text-center text-slate-400 hover:text-slate-200";
+                tabLogin.className = "auth-tab flex-1 py-2.5 text-xs font-bold rounded-xl text-center text-white bg-teal-600 shadow-md";
+                
+                registerView.classList.add('hidden');
+                loginView.classList.remove('hidden');
+                gsap.fromTo(loginView, { opacity: 0, y: 10 }, { opacity: 1, y: 0, duration: 0.25 });
+            }
+        }
+
+        // --- Handle Login Form Submission ---
+        document.getElementById('loginForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            hideAlert();
+
+            const btn = document.getElementById('authBtn');
+            const text = document.getElementById('btnText');
+            const username = document.getElementById('authUsername').value.trim();
+            const password = document.getElementById('authPassword').value;
+
+            btn.disabled = true;
+            btn.classList.add('opacity-60', 'cursor-not-allowed');
+            text.innerText = "AUTHENTICATING...";
+
+            try {
+                const response = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.access_token) {
+                    localStorage.setItem('aura_token', data.access_token);
+                    localStorage.setItem('aura_user', JSON.stringify(data.user));
+                    text.innerText = "ACCESS GRANTED";
+                    setTimeout(() => {
+                        window.location.href = 'dash.html';
+                    }, 400);
+                } else {
+                    btn.disabled = false;
+                    btn.classList.remove('opacity-60', 'cursor-not-allowed');
+                    text.innerText = "ACCESS DASHBOARD";
+                    showAlert(data.detail || "Authentication rejected. Invalid credentials.");
+                }
+            } catch (err) {
+                btn.disabled = false;
+                btn.classList.remove('opacity-60', 'cursor-not-allowed');
+                text.innerText = "ACCESS DASHBOARD";
+                showAlert("Cannot connect to local AURA server. Please check backend.");
+            }
+        });
+
+        // --- Handle Registration Form Submission ---
+        document.getElementById('registerForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            hideAlert();
+
+            const btn = document.getElementById('regBtn');
+            const text = document.getElementById('regBtnText');
+            const fullName = document.getElementById('regFullName').value.trim();
+            const username = document.getElementById('regUsername').value.trim();
+            const password = document.getElementById('regPassword').value;
+            const confirmPassword = document.getElementById('regConfirmPassword').value;
+
+            if (password !== confirmPassword) {
+                showAlert("Passwords do not match. Please verify your entries.");
+                return;
+            }
+
+            btn.disabled = true;
+            btn.classList.add('opacity-60', 'cursor-not-allowed');
+            text.innerText = "REGISTERING...";
+
+            try {
+                const response = await fetch('/api/auth/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        full_name: fullName,
+                        username: username,
+                        password: password,
+                        confirm_password: confirmPassword
+                    })
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.id) {
+                    showAlert(`Account for ${data.username} created successfully! Redirecting to login...`, true);
+                    document.getElementById('authUsername').value = data.username;
+                    document.getElementById('authPassword').value = '';
+                    
+                    setTimeout(() => {
+                        switchMode('login');
+                        btn.disabled = false;
+                        btn.classList.remove('opacity-60', 'cursor-not-allowed');
+                        text.innerText = "REGISTER OPERATOR";
+                        showAlert(`Registration complete for ${data.username}. Enter password to log in.`, true);
+                    }, 1200);
+                } else {
+                    btn.disabled = false;
+                    btn.classList.remove('opacity-60', 'cursor-not-allowed');
+                    text.innerText = "REGISTER OPERATOR";
+                    showAlert(data.detail || "Registration failed. Please check inputs.");
+                }
+            } catch (err) {
+                btn.disabled = false;
+                btn.classList.remove('opacity-60', 'cursor-not-allowed');
+                text.innerText = "REGISTER OPERATOR";
+                showAlert("Server communication error during registration.");
+            }
+        });
+    </script>
+</body>
+</html>
